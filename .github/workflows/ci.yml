@@ -24,6 +24,7 @@ jobs:
           - lynx
           - msdos
           - msx
+          - nes
 
     container:
       image: fozztexx/defoogi:1.4.5
