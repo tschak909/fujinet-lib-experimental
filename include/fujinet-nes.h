@@ -31,15 +31,23 @@
 extern bool fuji_nes_present(void);
 
 /*
-  fuji_mount_disk_image() only starts the transfer. The image itself arrives
-  asynchronously, pushed to the cartridge while the console keeps running, so
-  poll fuji_nes_boot_state() until it reads READY (or FAILED, in which case
-  fuji_nes_boot_error() says why). fuji_nes_boot_percent() runs 0-100 and is
-  there to drive a progress bar.
+  MOUNT_IMAGE does not reply until the FujiNet has pushed the whole image to
+  the cartridge, so fuji_mount_disk_image() blocks for the entire transfer
+  (and fn_commit() may give up before a slow one finishes). A client that
+  wants to show progress starts MOUNT_IMAGE itself, sets FNR_SEQ, and polls
+  these while FN_ACKSEQ has not yet echoed it. Then, as for a plain mount,
+  fuji_nes_boot_state() should read READY (or FAILED, in which case
+  fuji_nes_boot_error() says why).
+
+  fuji_nes_boot_percent() runs 0-100. fuji_nes_boot_got() and
+  fuji_nes_boot_total() are the image's byte counts; total is 0 until the
+  image stream opens.
 */
 extern uint8_t fuji_nes_boot_state(void);
 extern uint8_t fuji_nes_boot_percent(void);
 extern uint8_t fuji_nes_boot_error(void);
+extern uint32_t fuji_nes_boot_got(void);
+extern uint32_t fuji_nes_boot_total(void);
 
 /*
   Boot the image that was just pushed: arm the load and jump into the

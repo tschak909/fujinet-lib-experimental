@@ -47,6 +47,8 @@
 #define FN_MAGIC1    (*(volatile uint8_t *) 0x540A)
 #define FN_PROTOVER  (*(volatile uint8_t *) 0x540B)
 #define FN_LINK      (*(volatile uint8_t *) 0x5415)
+#define FN_BOOTGOT   ((volatile uint8_t *) 0x5416)   /* 24-bit LE */
+#define FN_BOOTTOT   ((volatile uint8_t *) 0x5419)   /* 24-bit LE */
 
 #define FN_STATUS_LINK 0x01
 #define FN_STATUS_BUSY 0x02

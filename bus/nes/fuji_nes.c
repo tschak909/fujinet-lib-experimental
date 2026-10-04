@@ -22,6 +22,33 @@ uint8_t fuji_nes_boot_error(void)
 }
 
 /*
+  The cart writes these a byte at a time while the transfer runs, so a single
+  read can catch a carry half-propagated. Two matching reads in a row can't.
+*/
+static uint32_t count24(volatile uint8_t *p)
+{
+  uint32_t a, b;
+
+  b = (uint32_t) p[0] | ((uint32_t) p[1] << 8) | ((uint32_t) p[2] << 16);
+  do {
+    a = b;
+    b = (uint32_t) p[0] | ((uint32_t) p[1] << 8) | ((uint32_t) p[2] << 16);
+  } while (a != b);
+
+  return a;
+}
+
+uint32_t fuji_nes_boot_got(void)
+{
+  return count24(FN_BOOTGOT);
+}
+
+uint32_t fuji_nes_boot_total(void)
+{
+  return count24(FN_BOOTTOT);
+}
+
+/*
   Hand the console to the loader ROM at $5800. It is cartridge-served and
   untouched by the SRAM copy it performs, so nothing has to be moved into
   console RAM first: arm the load, put the PPU and APU to sleep, and jump.
