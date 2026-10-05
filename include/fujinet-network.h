@@ -47,6 +47,13 @@ enum {
  */
 extern uint16_t fn_bytes_read;
 
+#ifdef __NES__
+/* The NES cartridge bus keeps the SIO targets' timeout and device-error
+   globals (bus/nes/fujinet-bus-nes.c), so portable clients compile as-is. */
+extern uint8_t fn_default_timeout;
+extern uint8_t fn_device_error;
+#endif
+
 /**
  * Convert device specific error in code to FujiNet Network library error, agnostic of device.
  * Library code calls this when it encounters an error to return value applications should use.

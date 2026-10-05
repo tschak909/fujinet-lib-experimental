@@ -4,6 +4,17 @@
 
 uint16_t fuji_bus_call_rlen;
 
+/* The same two globals the SIO targets have, so portable clients compile
+   unchanged. fn_default_timeout is in seconds (roughly -- the wait is a
+   counted loop, see fn_commit); a client widens it around a call it knows to
+   be slow, such as an open the FujiNet answers only after a whole HTTPS
+   round trip. fn_device_error is the last failed call's reason: the cart's
+   own error (FN_ENOLINK..FN_ETOOBIG), FN_EWAIT when the cart never answered,
+   or 144 when the FujiNet answered with a NAK -- the SIO "device error",
+   after which a STATUS call reports the device's own code. */
+uint8_t fn_default_timeout = 15;
+uint8_t fn_device_error;
+
 void __fastcall__ fn_tx(uint8_t b)
 {
   FN_TXPAGE = b;
@@ -25,21 +36,30 @@ void fn_regwr(uint8_t reg, uint8_t val)
   sequence replays a number the cart has already acknowledged: no request is
   sent, and the stale reply still sitting in the window looks like success.
 
-  The wait loop is deliberately dumb. The cart's own transaction budget is 5s,
-  and 60s for MOUNT_IMAGE, so we have to outlast that for a real timeout to
-  surface as the cart's error code rather than ours. ~12 s at 1.79 MHz.
+  The wait loop is deliberately dumb: fn_default_timeout seconds, at about
+  333 outer passes a second at 1.79 MHz (the loop used to be a fixed 4000
+  passes, ~12 s). The cart's own transaction budget is 5 s -- 90 s for a
+  network device's OPEN and CLOSE, 60 s for MOUNT_IMAGE -- and a client that
+  wants a real timeout to surface as the cart's error code rather than ours
+  sets fn_default_timeout past it. Never below 6 s, so the cart's ordinary
+  budget is always outlasted.
 */
+#define FN_PASSES_PER_SEC 333u
+
 uint8_t fn_commit(void)
 {
   uint8_t want = (uint8_t) (FN_ACKSEQ + 1);
-  uint16_t outer, inner;
+  uint16_t outer, inner, limit;
 
+
+  limit = (uint16_t) (fn_default_timeout < 6 ? 6 : fn_default_timeout)
+          * FN_PASSES_PER_SEC;
 
   if (want == 0)
     want = 1;                   /* 0 means "never used" */
   fn_regwr(FNR_SEQ, want);
 
-  for (outer = 0; outer < 4000u; outer++) {
+  for (outer = 0; outer < limit; outer++) {
     for (inner = 0; inner < 250u; inner++) {
       if (FN_ACKSEQ == want)
         return FN_ERRCODE;
@@ -114,11 +134,14 @@ bool fuji_bus_call(uint8_t device, uint8_t fuji_cmd, uint8_t fields,
       fn_tx(*data++);
   }
 
-  if (fn_commit() != FN_OK)
+  fn_device_error = fn_commit();
+  if (fn_device_error != FN_OK)
     return false;
 
-  if (FN_REPLYCMD != FUJICMD_ACK)
+  if (FN_REPLYCMD != FUJICMD_ACK) {
+    fn_device_error = 144;
     return false;
+  }
 
   rlen = (uint16_t) FN_RXLEN_LO | ((uint16_t) FN_RXLEN_HI << 8);
   if (rlen > FN_REPLY_MAX)
